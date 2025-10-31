@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => messageDiv.classList.add("hidden"), 4000);
   }
 
-  function createParticipantList(participants) {
+  function createParticipantList(participants, activityName) {
     // Return a UL element with participants as list items
     const ul = document.createElement("ul");
     ul.className = "participants-list";
@@ -28,7 +28,35 @@ document.addEventListener("DOMContentLoaded", () => {
       const span = document.createElement("span");
       span.className = "participant-chip";
       span.textContent = p;
+
+      // delete/unregister button
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "delete-participant";
+      deleteBtn.title = "Unregister participant";
+      deleteBtn.type = "button";
+      deleteBtn.textContent = "✕";
+      deleteBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        if (!confirm(`Unregister ${p} from ${activityName}?`)) return;
+        try {
+          const url = `/activities/${encodeURIComponent(activityName)}/participants?email=${encodeURIComponent(p)}`;
+          const res = await fetch(url, { method: "DELETE" });
+          const body = await res.json();
+          if (!res.ok) {
+            showMessage(body.detail || "Unregister failed.", "error");
+            return;
+          }
+          showMessage(body.message || "Unregistered successfully.", "success");
+          // Refresh activities to show updated participants and counts
+          await loadActivities();
+        } catch (err) {
+          console.error(err);
+          showMessage("An error occurred while unregistering.", "error");
+        }
+      });
+
       li.appendChild(span);
+      li.appendChild(deleteBtn);
       ul.appendChild(li);
     });
     return ul;
@@ -69,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const participantsHeader = document.createElement("h5");
       participantsHeader.textContent = `Participants (${info.participants.length})`;
 
-      const participantsList = createParticipantList(info.participants);
+  const participantsList = createParticipantList(info.participants, name);
 
       participantsSection.appendChild(participantsHeader);
       participantsSection.appendChild(participantsList);
@@ -116,20 +144,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       showMessage(body.message || "Signed up successfully!", "success");
 
-      // Update the specific activity card participants list and capacity text
-      const cardId = `activity-${activity.replace(/\s+/g, "-").toLowerCase()}`;
-      const card = document.getElementById(cardId);
-      if (card) {
-        // Update capacity line (assumes it's the 4th <p>)
-        const pElems = card.getElementsByTagName("p");
-        if (pElems.length >= 3) {
-          // Re-fetch activities to get accurate counts
-          await loadActivities();
-        }
-      } else {
-        // fallback: reload all activities
-        await loadActivities();
-      }
+      // Refresh activities so the participants list and counts update immediately
+      await loadActivities();
 
       signupForm.reset();
     } catch (err) {
